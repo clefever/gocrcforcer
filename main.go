@@ -1,16 +1,106 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"math/bits"
 	"os"
+	"strconv"
 )
 
 /*---- Main application ----*/
 
 func main() {
-	fmt.Println("Usage:", os.Args[0], "FileName ByteOffset NewCrc32Value")
+	// Handle arguments
+	if len(os.Args) != 4 {
+		fmt.Fprintln(os.Stderr, "Usage:", os.Args[0], "FileName ByteOffset NewCrc32Value")
+		os.Exit(1)
+	}
+
+	// Parse and check file offset argument
+	offset, err := strconv.ParseInt(os.Args[2], 10, 64)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Error: Invalid byte offset")
+		os.Exit(1)
+	}
+
+	// Parse and check new CRC argument
+	if len(os.Args[3]) != 8 {
+		fmt.Fprintln(os.Stderr, "Error: Invalid new CRC-32 value")
+		os.Exit(1)
+	}
+	newcrc, err := strconv.ParseUint(os.Args[3], 16, 32)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Error: Invalid new CRC-32 value")
+		os.Exit(1)
+	}
+
+	// Process the file
+	err = ModifyFileCrc32(os.Args[1], offset, reverseBits(uint32(newcrc)), true)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
+		os.Exit(1)
+	}
+}
+
+/*---- Main function ----*/
+
+// ModifyFileCrc32 - Public library function.
+func ModifyFileCrc32(path string, offset int64, newcrc uint32, printstatus bool) error {
+	f, err := os.OpenFile(path, os.O_RDWR, 0644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	fi, err := f.Stat()
+	if err != nil {
+		return err
+	}
+	filelen := fi.Size()
+	if offset+4 > filelen {
+		return errors.New("Byte offset plus 4 exceeds file length")
+	}
+
+	// Read entire file and calculate original CRC-32 value
+	crc := getCrc32(f)
+	if printstatus {
+		fmt.Printf("Original CRC-32: %X\n", reverseBits(crc))
+	}
+
+	// Compute the change to make
+	delta := uint32(multiplyMod(reciprocalMod(powMod(2, uint64((filelen-offset)*8))), uint64(crc^newcrc)))
+
+	// Patch 4 bytes in the file
+	if _, err := f.Seek(offset, 0); err != nil {
+		return err
+	}
+	bytes4 := make([]byte, 4)
+	if _, err := f.Read(bytes4); err != nil {
+		return err
+	}
+	for i := range bytes4 {
+		bytes4[i] ^= uint8(reverseBits(delta) >> uint32(i*8))
+	}
+	if _, err := f.Seek(offset, 0); err != nil {
+		return err
+	}
+	if _, err := f.Write(bytes4); err != nil {
+		return err
+	}
+	if printstatus {
+		fmt.Println("Computed and wrote patch")
+	}
+
+	// Recheck entire file
+	if getCrc32(f) != newcrc {
+		panic("Failed to update CRC-32 to desired value")
+	}
+	if printstatus {
+		fmt.Println("New CRC-32 successfully verified")
+	}
+	return nil
 }
 
 /*---- Utilities ----*/
@@ -18,12 +108,12 @@ func main() {
 // Generator polynomial. Do not modify, because there are many dependencies
 const polynomial uint64 = 0x104C11DB7
 
-func getCrc32(raf *os.File) uint32 {
-	raf.Seek(0, 0)
+func getCrc32(f *os.File) uint32 {
+	f.Seek(0, 0)
 	var crc uint32 = 0xFFFFFFFF
 	buffer := make([]byte, 32*1024)
 	for {
-		n, err := raf.Read(buffer)
+		n, err := f.Read(buffer)
 		if err != nil && err != io.EOF {
 			panic(err)
 		}
