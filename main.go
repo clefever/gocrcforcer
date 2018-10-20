@@ -37,7 +37,7 @@ func main() {
 	}
 
 	// Process the file
-	err = ModifyFileCrc32(os.Args[1], offset, reverseBits(uint32(newcrc)), true)
+	err = ModifyFileCrc32(os.Args[1], offset, bits.Reverse32(uint32(newcrc)), true)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)
@@ -66,7 +66,7 @@ func ModifyFileCrc32(path string, offset int64, newcrc uint32, printstatus bool)
 	// Read entire file and calculate original CRC-32 value
 	crc := getCrc32(f)
 	if printstatus {
-		fmt.Printf("Original CRC-32: %X\n", reverseBits(crc))
+		fmt.Printf("Original CRC-32: %X\n", bits.Reverse32(crc))
 	}
 
 	// Compute the change to make
@@ -81,7 +81,7 @@ func ModifyFileCrc32(path string, offset int64, newcrc uint32, printstatus bool)
 		return err
 	}
 	for i := range bytes4 {
-		bytes4[i] ^= uint8(reverseBits(delta) >> uint32(i*8))
+		bytes4[i] ^= uint8(bits.Reverse32(delta) >> uint32(i*8))
 	}
 	if _, err := f.Seek(offset, 0); err != nil {
 		return err
@@ -127,14 +127,6 @@ func getCrc32(f *os.File) uint32 {
 			}
 		}
 	}
-}
-
-func reverseBits(x uint32) uint32 {
-	var y uint32
-	for i := uint32(0); i < 32; i++ {
-		y |= ((x >> i) & 1) << (31 - i)
-	}
-	return y
 }
 
 /*---- Polynomial arithmetic ----*/
