@@ -64,13 +64,20 @@ func ModifyFileCrc32(path string, offset int64, newcrc uint32, printstatus bool)
 	}
 
 	// Read entire file and calculate original CRC-32 value
-	crc := getCrc32(f)
+	crc, err := getCrc32(f)
+	if err != nil {
+		return err
+	}
 	if printstatus {
 		fmt.Printf("Original CRC-32: %X\n", bits.Reverse32(crc))
 	}
 
 	// Compute the change to make
-	delta := uint32(multiplyMod(reciprocalMod(powMod(2, uint64((filelen-offset)*8))), uint64(crc^newcrc)))
+	rm, err := reciprocalMod(powMod(2, uint64((filelen-offset)*8)))
+	if err != nil {
+		return err
+	}
+	delta := uint32(multiplyMod(rm, uint64(crc^newcrc)))
 
 	// Patch 4 bytes in the file
 	if _, err := f.Seek(offset, 0); err != nil {
@@ -94,8 +101,8 @@ func ModifyFileCrc32(path string, offset int64, newcrc uint32, printstatus bool)
 	}
 
 	// Recheck entire file
-	if getCrc32(f) != newcrc {
-		panic("Failed to update CRC-32 to desired value")
+	if chkcrc, err := getCrc32(f); err != nil || chkcrc != newcrc {
+		return errors.New("Failed to update CRC-32 to desired value")
 	}
 	if printstatus {
 		fmt.Println("New CRC-32 successfully verified")
@@ -108,17 +115,17 @@ func ModifyFileCrc32(path string, offset int64, newcrc uint32, printstatus bool)
 // Generator polynomial. Do not modify, because there are many dependencies
 const polynomial uint64 = 0x104C11DB7
 
-func getCrc32(f *os.File) uint32 {
+func getCrc32(f *os.File) (uint32, error) {
 	f.Seek(0, 0)
 	var crc uint32 = 0xFFFFFFFF
 	buffer := make([]byte, 32*1024)
 	for {
 		n, err := f.Read(buffer)
 		if err != nil && err != io.EOF {
-			panic(err)
+			return 0, err
 		}
 		if n == 0 {
-			return ^crc
+			return ^crc, nil
 		}
 		for _, b := range buffer[:n] {
 			for i := uint32(0); i < 8; i++ {
@@ -181,7 +188,7 @@ func divideAndRemainder(x uint64, y uint64) (uint64, uint64) {
 }
 
 // Returns the reciprocal of polynomial x with respect to the generator polynomial.
-func reciprocalMod(x uint64) uint64 {
+func reciprocalMod(x uint64) (uint64, error) {
 	// Based on a simplification of the extended Euclidean algorithm
 	y := x
 	x = polynomial
@@ -196,9 +203,9 @@ func reciprocalMod(x uint64) uint64 {
 		b = c
 	}
 	if x != 1 {
-		panic("Reciprocal does not exist")
+		return 0, errors.New("Reciprocal does not exist")
 	}
-	return a
+	return a, nil
 }
 
 func getDegree(x uint64) int32 {
