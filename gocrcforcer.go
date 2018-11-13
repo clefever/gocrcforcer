@@ -79,12 +79,12 @@ func ModifyFileCrc32(path string, offset int64, newcrc uint32, printstatus bool)
 // Generator polynomial. Do not modify, because there are many dependencies
 const polynomial uint64 = 0x104C11DB7
 
-func getCrc32(f *os.File) (uint32, error) {
-	f.Seek(0, 0)
+func getCrc32(rs io.ReadSeeker) (uint32, error) {
+	rs.Seek(0, 0)
 	var crc uint32 = 0xFFFFFFFF
 	buffer := make([]byte, 32*1024)
 	for {
-		n, err := f.Read(buffer)
+		n, err := rs.Read(buffer)
 		if err != nil && err != io.EOF {
 			return 0, err
 		}
