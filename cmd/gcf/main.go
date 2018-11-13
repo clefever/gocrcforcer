@@ -2,14 +2,11 @@ package main
 
 import (
 	"fmt"
-	"math/bits"
 	"os"
 	"strconv"
 
 	"github.com/clefever/gocrcforcer"
 )
-
-/*---- Main application ----*/
 
 func main() {
 	// Handle arguments
@@ -37,7 +34,7 @@ func main() {
 	}
 
 	// Process the file
-	err = gocrcforcer.ModifyFileCrc32(os.Args[1], offset, bits.Reverse32(uint32(newcrc)), true)
+	err = gocrcforcer.ModifyFileCrc32(os.Args[1], offset, uint32(newcrc), true)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)

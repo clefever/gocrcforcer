@@ -10,6 +10,8 @@ import (
 
 // ModifyFileCrc32 - Public library function.
 func ModifyFileCrc32(path string, offset int64, newcrc uint32, printstatus bool) error {
+	newcrc = bits.Reverse32(newcrc)
+
 	f, err := os.OpenFile(path, os.O_RDWR, 0644)
 	if err != nil {
 		return err
