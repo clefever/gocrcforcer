@@ -4,7 +4,7 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "Go Build",
+            "label": "build gcf",
             "type": "shell",
             "command": "go",
             "args": [
@@ -13,6 +13,9 @@
                 "\"-w\""
             ],
             "group": "build",
+            "options": {
+                "cwd": "${workspaceFolder}/cmd/gcf"
+            },
             "presentation": {
                 "reveal": "always"
             },
