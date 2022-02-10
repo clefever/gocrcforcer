@@ -4,15 +4,18 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "build gcf",
+            "label": "Go Build",
             "type": "shell",
             "command": "go",
             "args": [
                 "build",
                 "-ldflags",
-                "\"-w\""
+                "-s -w"
             ],
-            "group": "build",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
             "options": {
                 "cwd": "${workspaceFolder}/cmd/gcf"
             },
